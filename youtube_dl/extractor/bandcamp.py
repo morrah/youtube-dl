@@ -93,8 +93,8 @@ class BandcampIE(InfoExtractor):
         formats = []
         track_info = self._parse_json(
             self._search_regex(
-                r'trackinfo\s*:\s*\[\s*({.+?})\s*\]\s*,\s*?\n',
-                webpage, 'track info', default='{}'), title)
+                r'["\']?trackinfo["\']?\s*:\s*\[\s*({.+?})\s*\]\s*,\s*?',
+                unescapeHTML(webpage), 'track info', default='{}'), title)
         if track_info:
             file_ = track_info.get('file')
             if isinstance(file_, dict):
@@ -115,10 +115,12 @@ class BandcampIE(InfoExtractor):
             track_number = int_or_none(track_info.get('track_num'))
             duration = float_or_none(track_info.get('duration'))
 
-        def extract(key):
+        def extract(key, is_string=True):
+            value_re = r'\b%s\s*["\']?\s*:\s*(["\'])(?P<value>(?:(?!\1).)+)\1' if is_string else \
+                       r'\b%s\s*["\']?\s*:\s*(?P<value>(.+?))\s*[,}]'
             return self._search_regex(
-                r'\b%s\s*["\']?\s*:\s*(["\'])(?P<value>(?:(?!\1).)+)\1' % key,
-                webpage, key, default=None, group='value')
+                value_re % key,
+                unescapeHTML(webpage), key, default=None, group='value')
 
         artist = extract('artist')
         album = extract('album_title')
@@ -127,19 +129,17 @@ class BandcampIE(InfoExtractor):
         release_date = unified_strdate(extract('album_release_date'))
 
         download_link = self._search_regex(
-            r'freeDownloadPage\s*:\s*(["\'])(?P<url>(?:(?!\1).)+)\1', webpage,
+            r'["\']?freeDownloadPage["\']?\s*:\s*(["\'])(?P<url>(?:(?!\1).)+)\1', unescapeHTML(webpage),
             'download link', default=None, group='url')
         if download_link:
-            track_id = self._search_regex(
-                r'(?ms)var TralbumData = .*?[{,]\s*id: (?P<id>\d+),?$',
-                webpage, 'track id')
+            track_id = extract('track_id', is_string=False)
 
             download_webpage = self._download_webpage(
                 download_link, track_id, 'Downloading free downloads page')
 
             blob = self._parse_json(
                 self._search_regex(
-                    r'data-blob=(["\'])(?P<blob>{.+?})\1', download_webpage,
+                    r'data-blob=(["\'])(?P<blob>{.+?})\1', unescapeHTML(download_webpage),
                     'blob', group='blob'),
                 track_id, transform_source=unescapeHTML)
 
